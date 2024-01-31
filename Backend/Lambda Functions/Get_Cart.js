@@ -5,8 +5,11 @@ const AWS = require('aws-sdk')
 AWS.config.update({ region: "us-east-1" });
 
 // Create the DynamoDB Service Object
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { BatchGetCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { BatchGetCommand, DynamoDBDocumentClient } = require("@aws-sdk/lib-dynamodb");
+const {
+    ApiGatewayHttpApiProxyEventHandler,
+  } = require("@anzp/aws-lambda-cookie");
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -16,26 +19,16 @@ exports.handler = async function(event, context, callback){
     let responseBody = ""
     let userIdValue;
 
-    const cookieHeader = event.headers['cookie'] || event.headers['Cookie'];
-    if (cookieHeader) {
-    const userId = cookieHeader.split(';').find(cookie => cookie.includes('userId'));
-    if (userId) {
-        const userIdValue = userId.split('=')[1];
-        console.log('User ID:', userIdValue);
-        // Now you can use userIdValue in your Lambda function
-    } else {
-        console.log('User ID not found in cookie');
-    }
-    } else {
-    console.log('Cookie header not found in the request');
-    }
+    const handler = new ApiGatewayHttpApiProxyEventHandler(event);
+    const cookies = handler.getCookies();
+    console.log({cookies}); 
 
     const command = new BatchGetCommand({
         RequestItems: {
             Anonymous_Cart: {
                 Keys: [
                     {
-                        User_Id: userIdValue
+                        User_Id: {S: "5"}
                     }
                 ],
                 ProjectionExpression: "Product_Id, Product_Name, Quantity, Amount"
@@ -56,3 +49,22 @@ exports.handler = async function(event, context, callback){
     }
     return response;
 }
+
+
+function parseUserIdFromCookie(cookieHeader) {
+    if (!cookieHeader) {
+      console.log('Cookie header nt found');
+      return null;
+    }
+  
+    const userIdCookie = cookieHeader.find(cookie => cookie.includes('userId'));
+  
+    if (userIdCookie) {
+      const userIdValue = userIdCookie.split(';')[0].split('=')[1];
+      console.log('User ID:', userIdValue);
+      return userIdValue;
+    } else {
+      console.log('User ID not found in cookie');
+      return null;
+    }
+  }
